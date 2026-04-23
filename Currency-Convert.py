@@ -1,24 +1,75 @@
 import requests
 import customtkinter as ctk
-from config import API_KEY
+import json
+import os
+
+root = ctk.CTk()
+root.title("Currency Converter")
+root.geometry("800x800")
+root.resizable(False, False)
+ctk.set_appearance_mode("dark")
+ctk.set_default_color_theme("blue")
+CONFIG_FILE = "config.json"
+BASE_CURRENCY = "USD"
+rates = {}
 
 common_currencies = [
     "USD", "EUR", "GBP", "INR", "AED", "SAR", 
     "JPY", "CAD", "AUD", "CHF", "CNY", "PKR"
 ]
 
-BASE_CURRENCY = "USD"
-url = f"https://v6.exchangerate-api.com/v6/{API_KEY}/latest/{BASE_CURRENCY}"
-response = requests.get(url)
-data = response.json()
-rates = (data["conversion_rates"])
+def load_key():
+    if os.path.exists(CONFIG_FILE):
+        with open(CONFIG_FILE, "r") as f:
+            data = json.load(f)
+            return data.get("api_key")
+    return None
 
-root = ctk.CTk()
-root.title("Currency Converter")
-root.geometry("800x800")
+def save_key(key):
+    with open(CONFIG_FILE, "w") as f:
+        json.dump({"api_key": key}, f)
 
-ctk.set_appearance_mode("dark")
-ctk.set_default_color_theme("blue")
+def fetch_rates(api_key):
+    global rates
+    url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/{BASE_CURRENCY}"
+    response = requests.get(url)
+    data = response.json()
+    if "conversion_rates" in data:
+        rates = data["conversion_rates"]
+        return True
+    return False
+
+def ask_for_key():
+    popup = ctk.CTkToplevel(root)
+    popup.geometry("400x220")
+    popup.overrideredirect(True)
+    popup.grab_set()
+
+    ctk.CTkLabel(popup, text="Enter your free API key:", font=("Arial", 14, "bold")).pack(pady=15)
+    ctk.CTkLabel(popup, text="Get yours at exchangerate-api.com", font=("Arial", 11)).pack()
+
+    entry_key = ctk.CTkEntry(popup, width=300)
+    entry_key.pack(pady=10)
+
+    def confirm():
+        key = entry_key.get().strip()
+        if not key:
+            return
+        if fetch_rates(key):
+            save_key(key)
+            popup.destroy()
+        else:
+            entry_key.delete(0, ctk.END)
+            ctk.CTkLabel(popup, text="Invalid key. Try again.", text_color="red").pack()
+
+    ctk.CTkButton(popup, text="Save Key", command=confirm,
+                  fg_color="#2ecc71", hover_color="#27ae60").pack(pady=10)
+    
+API_KEY = load_key()
+if API_KEY:
+    fetch_rates(API_KEY)
+else:
+    root.after(100, ask_for_key)
 
 ctk.CTkLabel(root, text="Currency Converter", font=("Arial", 20, "bold")).pack(pady=10)
 output = ctk.CTkTextbox(root, height=200, width=400,font= ("Arial",14))
@@ -36,6 +87,9 @@ def make_button(text, command, fg_color, hover_color):
         hover_color=hover_color,
         font=("Arial", 14, "bold")
     ).place(x = 300,y = 450)
+
+
+
 
 ctk.CTkLabel(root, text="From", font=("Arial", 14, "bold")).place(x = 250, y = 270)
 dropdown_from = ctk.CTkOptionMenu(root,values=common_currencies)
